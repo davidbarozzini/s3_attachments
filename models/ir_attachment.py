@@ -27,27 +27,22 @@ class IrAttachment(models.Model):
     _inherit = "ir.attachment"
 
     is_external = fields.Boolean(string="Risorsa esterna", default=False)
-
-    @api.model
-    def _get_aws_config(self):
-        region = self.env["ir.config_parameter"].sudo().get_param("aws_region_name")
-        return Config(region_name=region)
+    is_uploaded = fields.Boolean(string="Caricato su S3", readonly=True, default=False)
 
     @api.model
     def _file_read(self, fname):
         full_path = self._full_path(fname)
 
-        atts = self.search([("store_fname", "=", fname)])
+        atts = self.env["ir.attachment"].search([("store_fname", "=", fname)])
         if not atts:
             _logger.info("_file_read reading %s", fname, exc_info=True)
             return b""
         att = atts[0]
 
         if att.is_external and not os.path.exists(full_path):
-            # FIXME test
 
             def get_param(param):
-                return self.env["ir.config_parameter"].sudo().get_param(param)
+                return self.env["ir.config.parameter"].sudo().get_param(param)
 
             aws_access_key_id = get_param("aws_access_key_id")
             aws_secret_access_key = get_param("aws_secret_access_key")
@@ -89,35 +84,28 @@ class IrAttachment(models.Model):
             if not os.path.isdir(dirname):
                 with tools.ignore(OSError):
                     os.makedirs(dirname)
-            open(full_path, "ab").close()
-
-    @api.model
-    def _file_mark_for_upload(self, fname):
-        fname = re.sub("[.]", "", fname).strip("/\\")
-        full_path = os.path.join(self._full_path("upload_checklist"), fname)
-        if not os.path.exists(full_path):
-            dirname = os.path.dirname(full_path)
-            if not os.path.isdir(dirname):
-                with tools.ignore(OSError):
-                    os.makedirs(dirname)
-            open(full_path, "ab").close()
+            open(full_path, "ab").close()  # pylint: disable=consider-using-with
 
     @api.model_create_multi
     def create(self, vals_list):
         """
         Create override to mark external files for upload.
         """
+        condition = (
+            self.env["ir.config.parameter"].sudo().get_param("aws_upload_condition")
+        )
+        model_names = [
+            m.id
+            for m in self.env["ir.model"].search(
+                [("model", "in", condition.split(","))]
+            )
+        ]
+
         for vals in vals_list:
-            # FIXME set is_external
-            pass
+            if vals["model_id"] in model_names:
+                vals["is_external"] = True
 
-        atts = super().create(vals_list)
-
-        for att in atts:
-            if att.is_external:
-                self._file_mark_for_upload(att.store_fname)
-
-        return atts
+        return super().create(vals_list)
 
     @api.autovacuum
     def _gc_file_store(self):
@@ -142,15 +130,21 @@ class IrAttachment(models.Model):
                 fname = f"{dirname}/{filename}"
                 checklist[fname] = os.path.join(dirpath, filename)
 
-        # Clean up the checklist.
         removed = 0
         for names in cr.split_for_in_conditions(checklist):
             # Keep files that are linked to a _local_ attachment
-            # FIXME keep files that are not yet been uploaded
+            # or files that are linked to an external attachment and
+            # haven't been uploaded yet
             cr.execute(
                 """
                 SELECT store_fname FROM ir_attachment
-                WHERE store_fname IN %s and is_external is false
+                WHERE
+                    store_fname IN %s and (
+                        is_external is false or (
+                            is_external is true
+                            and is_uploaded is false
+                        )
+                    )
                 """,
                 [names],
             )
@@ -158,7 +152,9 @@ class IrAttachment(models.Model):
 
             for fname in names:
                 filepath = checklist[fname]
-                if fname not in whitelist:
+                if fname not in whitelist and os.path.exists(
+                    os.path.join(self._full_path)
+                ):
                     try:
                         os.unlink(self._full_path(fname))
                         _logger.debug("_file_gc unlinked %s", self._full_path(fname))
@@ -184,7 +180,7 @@ class IrAttachment(models.Model):
             return
 
         def get_param(param):
-            return self.env["ir.config_parameter"].sudo().get_param(param)
+            return self.env["ir.config.parameter"].sudo().get_param(param)
 
         aws_access_key_id = get_param("aws_access_key_id")
         aws_secret_access_key = get_param("aws_secret_access_key")
@@ -213,15 +209,20 @@ class IrAttachment(models.Model):
                 fname = f"{dirname}/{filename}"
                 checklist[fname] = os.path.join(dirpath, filename)
 
-        # get the files still to upload
-        # not_uploaded = []
-        # for dirpath, _, filenames in os.walk(self._full_path("upload_checklist")):
-        #     dirname = os.path.basename(dirpath)
-        #     for filename in filenames:
-        #         not_uploaded.append(f"{dirname}/{filename}")
+        cr.execute(
+            """
+            SELECT store_fname FROM ir_attachment
+            WHERE store_fname IN %s AND is_external is true
+            """,
+            [list(checklist.keys())],
+        )
+        whitelist = set(row[0] for row in cr.fetchall())
 
-        # Clean up the checklist.
-        removed = 0
+        to_delete = list(set(checklist.keys()) - whitelist)
+
+        if not to_delete:
+            cr.commit()  # pylint: disable=invalid-commit
+            _logger.info("external filestore gc 0 checked, 0 removed")
 
         s3 = boto3.client(
             "s3",
@@ -230,79 +231,42 @@ class IrAttachment(models.Model):
             aws_secret_access_key=aws_secret_access_key,
         )
 
-        # FIXME here
-        cr.execute(
-            """
-            SELECT store_fname FROM ir_attachment
-            WHERE store_fname IN %s OR is_external is true
-            """,
-            [list(checklist.keys())],
-        )
-        whitelist = set(row[0] for row in cr.fetchall())
-
-        to_delete = list(set(checklist.keys()) - whitelist)
-
-        errors = []
-
-        # boto3 can donwload at most 1000 elements with a single HTTP call
+        # boto3 can delete at most 1000 elements with a single HTTP call
         for i in range(0, len(to_delete), 1000):
             chunk = to_delete[i : i + 1000]
-            errs = s3.delete_objects(
+            res = s3.delete_objects(
                 Bucket=aws_bucket_name,
                 Delete={
                     "Objects": [{"Key": key} for key in chunk],
                     "Quiet": True,
                 },
             )
-            errors.extend(errs["Errors"]) # FIXME does this work?
+            for error in res["Errors"]:
+                _logger.warning(
+                    "_file_egc could not delete %s: %s", error["Key"], error["Message"]
+                )
+                checklist.pop(error["Key"], False)
 
-        # FIXME manage errors (sigh)
-        # FIXME clean up checklist with stuff that was really deleted
-
-
-
+        # clean up checklist
+        removed = 0
         for names in cr.split_for_in_conditions(checklist):
-            # Keep files that are marked to be uploaded
-            cr.execute(
-                """
-                SELECT store_fname FROM ir_attachment
-                WHERE store_fname IN %s
-                    AND store_fname NOT IN %s
-                    AND is_external is true
-                """,
-                [names],
-            )
-            whitelist = set(row[0] for row in cr.fetchall())
-
-            # remove garbage files, and clean up checklist
             for fname in names:
-                filepath = checklist[fname]
-                if fname not in whitelist:
-                    try:
-                        # FIXME delete file on s3
-
-                        _logger.debug("_file_egc deleted %s", self._full_path(fname))
-                        removed += 1
-                    except Exception:
-                        _logger.info(
-                            "_file_egc could not delete %s",
-                            self._full_path(fname),
-                            exc_info=True,
-                        )
                 with tools.ignore(OSError):
-                    os.unlink(filepath)
+                    os.unlink(checklist[fname])
+                removed += 1
 
         # commit to release the lock
         cr.commit()  # pylint: disable=invalid-commit
         _logger.info(
-            "external filestore gc %d checked, %d removed", len(checklist), removed
+            "external filestore gc %d checked, %d removed", len(to_delete), removed
         )
 
     def _set_attachment_data(self, asbytes):
         for attach in self:
             fname = attach.store_fname
-            if attach.is_external and fname:
+            if attach.is_external and attach.is_uploaded and fname:
                 self._file_delete_external(fname)
+                attach.is_uploaded = False
 
         return super()._set_attachment_data(asbytes)
 
@@ -315,7 +279,7 @@ class IrAttachment(models.Model):
             for attach in self
             if attach.store_fname and attach.is_external
         )
-        res = super(IrAttachment, self).unlink()
+        res = super().unlink()
         for fname in to_delete:
             self._file_delete_external(fname)
 
@@ -323,32 +287,57 @@ class IrAttachment(models.Model):
 
     @api.model
     def _upload_all(self):
-        # retrieve the file names from the checklist
-        checklist = {}
-        for dirpath, _, filenames in os.walk(self._full_path("upload_checklist")):
-            dirname = os.path.basename(dirpath)
-            for filename in filenames:
-                fname = f"{dirname}/{filename}"
-                checklist[fname] = os.path.join(dirpath, filename)
+        # TODO only keep files linked to an external attachment
+
+        def get_param(param):
+            return self.env["ir.config.parameter"].sudo().get_param(param)
+
+        aws_access_key_id = get_param("aws_access_key_id")
+        aws_secret_access_key = get_param("aws_secret_access_key")
+        aws_region_name = get_param("aws_region_name")
+        aws_bucket_name = get_param("aws_bucket_name")
+
+        if (
+            aws_access_key_id is False
+            or aws_secret_access_key is False
+            or aws_region_name is False
+            or aws_bucket_name is False
+        ):
+            _logger.error("AWS credentials missing")
+            return
+
+        s3 = boto3.client(
+            "s3",
+            config=Config(region_name=aws_region_name),
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+        )
+
+        checklist = self.env["ir.attachment"].search(
+            [("is_external", "=", True), ("is_uploaded", "=", False)]
+        )
 
         uploaded = 0
-        for names in self._cr.split_for_in_conditions(checklist):
-            for fname in names:
-                filepath = checklist[fname]
+        for atts in self._cr.split_for_in_conditions(checklist):
+            for att in atts:
+                fname = att.store_fname
+                res = s3.upload_file(
+                    Bucket=aws_bucket_name,
+                    Filename=self._full_path(fname),
+                    Key=fname,
+                )
 
-                try:
-                    # FIXME upload(self._full_path(fname))
-
-                    with tools.ignore(OSError):
-                        os.unlink(filepath)
-
-                    _logger.debug("_file_up uploaded %s", self._full_path(fname))
-                    uploaded += 1
-                except Exception:
+                if res:
+                    att.is_uploaded = True
+                else:
                     _logger.warning(
                         "_file_up could not upload %s",
                         self._full_path(fname),
                         exc_info=True,
                     )
+                    continue
+
+                _logger.debug("_file_up uploaded %s", self._full_path(fname))
+                uploaded += 1
 
         _logger.info("filestore up %d checked, %d uploaded", len(checklist), uploaded)
