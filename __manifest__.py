@@ -1,0 +1,17 @@
+{
+    "name": "S3 Attachments",
+    "summary": """
+        Modulo di gestione storage documentale.
+    """,
+    "description": """
+      This module allows to use an external S3 filestore for Odoo Attachments.
+      It also uses local caching to reduce the number of API calls.
+    """,
+    "license": "Other proprietary",
+    "author": "Gruppo Scudo Srl, David Barozzini",
+    "website": "http://www.grupposcudo.it",
+    "version": "14.0.0.1.0",
+    "depends": ["base"],
+    "external_dependencies": {"python": ["boto3"]},
+    "data": [],
+}
