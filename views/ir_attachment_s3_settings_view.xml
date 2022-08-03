@@ -2,12 +2,13 @@
 <odoo>
     <record id="ir_attachment_s3_settings_view_form" model="ir.ui.view">
         <field name="name">
-            ir.attachment.s3_settings.view.form
+            ir_attachment_s3_settings_view_form
         </field>
-        <field name="model">res.config.settings</field>
+        <field name="model">ir_attachment_s3_settings</field>
         <field name="priority" eval="11" />
         <field name="inherit_id" ref="base.res_config_settings_view_form" />
         <field name="arch" type="xml">
+            <!-- FIXME tidy up -->
             <xpath expr="//div[hasclass('settings')]" position="inside">
                 <div
                     class="app_settings_block"
@@ -19,7 +20,7 @@
                     <div class="row mt16 o_settings_container">
                         <div class="col-xs-12 col-md-6 o_setting_box">
                             <div class="o_setting_right_pane">
-                                <div class="content-group">
+                                <!-- <div class="content-group">
                                     <div class="mt16 row">
                                         <label
                                             for="aws_bucket_name"
@@ -28,7 +29,7 @@
                                         />
                                         <field name="aws_bucket_name" class="oe_inline" />
                                     </div>
-                                </div>
+                                </div> -->
                                 <div class="content-group">
                                     <div class="mt16 row">
                                         <label
@@ -66,7 +67,6 @@
                                         <field
                                             name="aws_bucket_name"
                                             class="oe_inline"
-                                            password="True"
                                         />
                                     </div>
                                 </div>
@@ -80,7 +80,6 @@
                                         <field
                                             name="aws_region_name"
                                             class="oe_inline"
-                                            password="True"
                                         />
                                     </div>
                                 </div>
@@ -90,7 +89,7 @@
                                     <div class="mt16 row">
                                         <label
                                             for="aws_upload_condition"
-                                            string="S3 condition"
+                                            string="Models to store remotely"
                                             class="col-xs-3 col-md-3 o_light_label"
                                         />
                                         <field name="aws_upload_condition" class="oe_inline" />
@@ -107,8 +106,8 @@
     <record id="ir_attachment_s3_settings_action" model="ir.actions.act_window">
         <field name="name">Settings</field>
         <field name="type">ir.actions.act_window</field>
-        <field name="res_model">ir.attachment.s3_settings</field>
-        <field name="view_id" ref="res_config_settings_view_form" />
+        <field name="res_model">ir_attachment_s3_settings</field>
+        <field name="view_id" ref="ir_attachment_s3_settings_view_form" />
         <field name="view_mode">form</field>
         <field name="target">inline</field>
         <field name="context">{'module' : 's3_attachments'}</field>
@@ -119,7 +118,7 @@
         name="S3 Settings"
         parent="base.next_id_9"
         sequence="0"
-        action="ir_attachment_s3_config_settings_action"
+        action="ir_attachment_s3_settings_action"
         groups="base.group_system"
     />
 </odoo>

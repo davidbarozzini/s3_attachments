@@ -10,8 +10,12 @@
     "license": "Other proprietary",
     "author": "Gruppo Scudo Srl, David Barozzini",
     "website": "http://www.grupposcudo.it",
-    "version": "14.0.0.1.0",
+    "version": "14.0.0.2.0",
     "depends": ["base"],
     "external_dependencies": {"python": ["boto3"]},
-    "data": [],
+    "data": [
+        "security/ir.model.access.csv",
+        "views/ir_attachment_s3_settings_view.xml",
+        # "automation/automatic_actions.xml",
+    ],
 }

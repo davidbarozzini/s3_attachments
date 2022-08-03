@@ -3,8 +3,9 @@ from odoo.exceptions import ValidationError
 
 
 class IrAttachmentS3Settings(models.TransientModel):
-    _name = "ir.attachment.s3_settings"
+    _name = "ir_attachment_s3_settings"
     _inherit = "res.config.settings"
+    _description = "Impostazioni per S3 Attachments"
 
     aws_access_key_id = fields.Char(
         string="AWS Access Key ID", config_parameter="aws_access_key_id"
@@ -26,10 +27,21 @@ class IrAttachmentS3Settings(models.TransientModel):
         """
         Before execution, check if the condition is ok.
         """
-        model_names = self.aws_upload_condition.split(",")
-        model_ids = self.env["ir.model"].search([("model", "in", model_names)])
 
-        if len(model_names) != len(model_ids):
-            raise ValidationError("Malformed condition: some models do not exist.")
+        if (
+            self.aws_access_key_id is False
+            or self.aws_secret_access_key is False
+            or self.aws_region_name is False
+            or self.aws_bucket_name is False
+            # or self.aws_upload_condition is False
+        ):
+            raise ValidationError("Missing data.")
+
+        if self.aws_upload_condition is not False:
+            model_names = self.aws_upload_condition.split(",")
+            model_ids = self.env["ir.model"].search([("model", "in", model_names)])
+
+            if len(model_names) != len(model_ids):
+                raise ValidationError("Malformed condition: some models do not exist.")
 
         return super().execute()
