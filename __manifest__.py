@@ -16,6 +16,6 @@
     "data": [
         "security/ir.model.access.csv",
         "views/ir_attachment_s3_settings_view.xml",
-        # "automation/automatic_actions.xml",
+        "automation/automatic_actions.xml",
     ],
 }
