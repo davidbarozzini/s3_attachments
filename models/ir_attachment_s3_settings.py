@@ -20,7 +20,9 @@ class IrAttachmentS3Settings(models.TransientModel):
         string="AWS Bucket Name", config_parameter="aws_bucket_name"
     )
     aws_upload_condition = fields.Char(
-        string="AWS Condition", config_parameter="aws_upload_condition"
+        string="AWS Condition",
+        config_parameter="aws_upload_condition",
+        help="A comma-separated list of models with no whitespace.",
     )
 
     def execute(self):
