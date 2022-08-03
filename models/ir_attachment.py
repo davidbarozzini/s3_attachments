@@ -70,6 +70,7 @@ class IrAttachment(models.Model):
                     aws_secret_access_key=aws_secret_access_key,
                 )
 
+                # TODO error management
                 s3.download_file(
                     aws_bucket_name,
                     fname,
