@@ -13,14 +13,14 @@ try:
 except (ImportError, IOError) as err:
     _logger.debug(err)
 
+IS_PRODUCTION = os.environ.get("ODOO_STAGE", False) == "production"
+
 
 class IrAttachment(models.Model):
     """
-    We set up two additional checklists for the gc.
+    We set up an additional checklists for the gc.
     The original list is used to mark for deletion local files.
     The external_checklist is the same but for files on s3.
-    The upload_checklist keeps track of local files that are still to upload, so they aren't
-    deleted by the gc.
 
     Confront comments in base/models/ir_attachment.py
     """
@@ -32,6 +32,10 @@ class IrAttachment(models.Model):
 
     @api.model
     def _file_read(self, fname):
+        if not IS_PRODUCTION:
+            _logger.error("Not in production: only local files available.")
+            return super()._file_read(fname)
+
         full_path = self._full_path(fname)
 
         atts = self.env["ir.attachment"].search(
@@ -85,6 +89,10 @@ class IrAttachment(models.Model):
 
     @api.model
     def _file_delete_external(self, fname):
+        if not IS_PRODUCTION:
+            _logger.error("Not in production: only local files available.")
+            return
+
         fname = re.sub("[.]", "", fname).strip("/\\")
         full_path = os.path.join(self._full_path("external_checklist"), fname)
         if not os.path.exists(full_path):
@@ -99,6 +107,10 @@ class IrAttachment(models.Model):
         """
         Create override to mark external files for upload.
         """
+        if not IS_PRODUCTION:
+            _logger.error("Not in production: only local files available.")
+            return super().create(vals_list)
+
         condition = (
             self.env["ir.config_parameter"].sudo().get_param("aws_upload_condition")
         )
@@ -187,6 +199,10 @@ class IrAttachment(models.Model):
         """
         Perform garbage collection on the s3 external store.
         """
+        if not IS_PRODUCTION:
+            _logger.error("Not in production: only local files available.")
+            return
+
         if self._storage() != "file":
             return
 
@@ -280,6 +296,10 @@ class IrAttachment(models.Model):
         )
 
     def _set_attachment_data(self, asbytes):
+        if not IS_PRODUCTION:
+            _logger.error("Not in production: only local files available.")
+            return super()._set_attachment_data(asbytes)
+
         for attach in self:
             fname = attach.store_fname
             if attach.is_external and attach.is_uploaded and fname:
@@ -292,6 +312,10 @@ class IrAttachment(models.Model):
         """
         Override to delete externally stored files.
         """
+        if not IS_PRODUCTION:
+            _logger.error("Not in production: only local files available.")
+            return super().unlink()
+
         to_delete = set(
             attach.store_fname
             for attach in self
@@ -310,6 +334,10 @@ class IrAttachment(models.Model):
         Upload on S3 all attachments marked as external but not yet uploaded.
         Then mark the attachments as uploaded and the local files as "to delete".
         """
+
+        if not IS_PRODUCTION:
+            _logger.error("Not in production: only local files available.")
+            return
 
         def get_param(param):
             return self.env["ir.config_parameter"].sudo().get_param(param)
