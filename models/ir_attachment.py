@@ -13,8 +13,6 @@ try:
 except (ImportError, IOError) as err:
     _logger.debug(err)
 
-IS_PRODUCTION = os.environ.get("ODOO_STAGE", False) == "production"
-
 
 class IrAttachment(models.Model):
     """
@@ -31,8 +29,16 @@ class IrAttachment(models.Model):
     is_uploaded = fields.Boolean(string="Caricato su S3", readonly=True, default=False)
 
     @api.model
+    def _is_s3_active(self):
+        odoo_stage = os.environ.get("ODOO_STAGE", "production")
+        aws_stage_condition = (
+            self.env["ir.config_parameter"].sudo().get_param("aws_stage_condition")
+        )
+        return odoo_stage == aws_stage_condition
+
+    @api.model
     def _file_read(self, fname):
-        if not IS_PRODUCTION:
+        if not self._is_s3_active():
             _logger.error("Not in production: only local files available.")
             return super()._file_read(fname)
 
@@ -89,7 +95,7 @@ class IrAttachment(models.Model):
 
     @api.model
     def _file_delete_external(self, fname):
-        if not IS_PRODUCTION:
+        if not self._is_s3_active():
             _logger.error("Not in production: only local files available.")
             return
 
@@ -107,7 +113,7 @@ class IrAttachment(models.Model):
         """
         Create override to mark external files for upload.
         """
-        if not IS_PRODUCTION:
+        if not self._is_s3_active():
             _logger.error("Not in production: only local files available.")
             return super().create(vals_list)
 
@@ -199,7 +205,7 @@ class IrAttachment(models.Model):
         """
         Perform garbage collection on the s3 external store.
         """
-        if not IS_PRODUCTION:
+        if not self._is_s3_active():
             _logger.error("Not in production: only local files available.")
             return
 
@@ -296,7 +302,7 @@ class IrAttachment(models.Model):
         )
 
     def _set_attachment_data(self, asbytes):
-        if not IS_PRODUCTION:
+        if not self._is_s3_active():
             _logger.error("Not in production: only local files available.")
             return super()._set_attachment_data(asbytes)
 
@@ -312,7 +318,7 @@ class IrAttachment(models.Model):
         """
         Override to delete externally stored files.
         """
-        if not IS_PRODUCTION:
+        if not self._is_s3_active():
             _logger.error("Not in production: only local files available.")
             return super().unlink()
 
@@ -335,7 +341,7 @@ class IrAttachment(models.Model):
         Then mark the attachments as uploaded and the local files as "to delete".
         """
 
-        if not IS_PRODUCTION:
+        if not self._is_s3_active():
             _logger.error("Not in production: only local files available.")
             return
 
