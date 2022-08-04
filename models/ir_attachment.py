@@ -39,7 +39,7 @@ class IrAttachment(models.Model):
     @api.model
     def _file_read(self, fname):
         if not self._is_s3_active():
-            _logger.error("Not in production: only local files available.")
+            _logger.info("Not in production: only local files available.")
             return super()._file_read(fname)
 
         full_path = self._full_path(fname)
@@ -96,7 +96,7 @@ class IrAttachment(models.Model):
     @api.model
     def _file_delete_external(self, fname):
         if not self._is_s3_active():
-            _logger.error("Not in production: only local files available.")
+            _logger.info("Not in production: only local files available.")
             return
 
         fname = re.sub("[.]", "", fname).strip("/\\")
@@ -114,7 +114,7 @@ class IrAttachment(models.Model):
         Create override to mark external files for upload.
         """
         if not self._is_s3_active():
-            _logger.error("Not in production: only local files available.")
+            _logger.info("Not in production: only local files available.")
             return super().create(vals_list)
 
         condition = (
@@ -189,7 +189,7 @@ class IrAttachment(models.Model):
                         _logger.debug("_file_gc unlinked %s", self._full_path(fname))
                         removed += 1
                     except (OSError, IOError):
-                        _logger.info(
+                        _logger.error(
                             "_file_gc could not unlink %s",
                             self._full_path(fname),
                             exc_info=True,
@@ -206,7 +206,7 @@ class IrAttachment(models.Model):
         Perform garbage collection on the s3 external store.
         """
         if not self._is_s3_active():
-            _logger.error("Not in production: only local files available.")
+            _logger.info("Not in production: only local files available.")
             return
 
         if self._storage() != "file":
@@ -303,7 +303,7 @@ class IrAttachment(models.Model):
 
     def _set_attachment_data(self, asbytes):
         if not self._is_s3_active():
-            _logger.error("Not in production: only local files available.")
+            _logger.info("Not in production: only local files available.")
             return super()._set_attachment_data(asbytes)
 
         for attach in self:
@@ -319,7 +319,7 @@ class IrAttachment(models.Model):
         Override to delete externally stored files.
         """
         if not self._is_s3_active():
-            _logger.error("Not in production: only local files available.")
+            _logger.info("Not in production: only local files available.")
             return super().unlink()
 
         to_delete = set(
@@ -342,7 +342,7 @@ class IrAttachment(models.Model):
         """
 
         if not self._is_s3_active():
-            _logger.error("Not in production: only local files available.")
+            _logger.info("Not in production: only local files available.")
             return
 
         def get_param(param):
@@ -359,7 +359,7 @@ class IrAttachment(models.Model):
             or aws_region_name is False
             or aws_bucket_name is False
         ):
-            _logger.error("AWS credentials missing")
+            _logger.info("AWS credentials missing")
             return
 
         s3 = boto3.client(
