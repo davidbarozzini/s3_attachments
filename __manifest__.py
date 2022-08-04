@@ -10,7 +10,7 @@
     "license": "Other proprietary",
     "author": "Gruppo Scudo Srl, David Barozzini",
     "website": "http://www.grupposcudo.it",
-    "version": "14.0.0.2.0",
+    "version": "14.0.0.3.0",
     "depends": ["base"],
     "external_dependencies": {"python": ["boto3"]},
     "data": [
