@@ -374,27 +374,29 @@ class IrAttachment(models.Model):
         )
 
         uploaded = 0
-        for atts in self._cr.split_for_in_conditions(checklist):
-            for att in atts:
-                fname = att.store_fname
+        try:
+            for atts in self._cr.split_for_in_conditions(checklist):
+                for att in atts:
+                    fname = att.store_fname
 
-                try:
-                    _res = s3.upload_file(
-                        Bucket=aws_bucket_name,
-                        Filename=self._full_path(fname),
-                        Key=fname,
-                    )
+                    try:
+                        _res = s3.upload_file(
+                            Bucket=aws_bucket_name,
+                            Filename=self._full_path(fname),
+                            Key=fname,
+                        )
 
-                    att.is_uploaded = True
-                    self._file_delete(fname)
-                    _logger.debug("_file_up uploaded %s", self._full_path(fname))
-                    uploaded += 1
-                except ClientError as e:
-                    _logger.warning(
-                        "_file_up could not upload %s: %s",
-                        self._full_path(fname),
-                        e,
-                        exc_info=True,
-                    )
+                        att.is_uploaded = True
+                        self._file_delete(fname)
+                        _logger.debug("_file_up uploaded %s", self._full_path(fname))
+                        uploaded += 1
+                    except ClientError as e:
+                        _logger.warning(
+                            "_file_up could not upload %s: %s",
+                            self._full_path(fname),
+                            e.response,
+                        )
+        except Exception as e:
+            _logger.error(e)
 
         _logger.info("filestore up %d checked, %d uploaded", len(checklist), uploaded)
