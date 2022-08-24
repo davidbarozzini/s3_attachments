@@ -379,6 +379,12 @@ class IrAttachment(models.Model):
                 for att in atts:
                     fname = att.store_fname
 
+                    if fname is False:
+                        _logger.warning(
+                            "_file_up attachment %s has no store_fname", att.id
+                        )
+                        continue
+
                     try:
                         _res = s3.upload_file(
                             Bucket=aws_bucket_name,
@@ -394,9 +400,12 @@ class IrAttachment(models.Model):
                         _logger.warning(
                             "_file_up could not upload %s: %s",
                             self._full_path(fname),
-                            e.response,
+                            e,
+                            exc_info=True,
                         )
-        except Exception as e:
-            _logger.error(e)
+        except Exception as e:  # pylint: disable=broad-except
+            # This broad catch is used so unless catastrophic events happen,
+            # the transaction is not entirely rolled back.
+            _logger.error(e, exc_info=True)
 
-        _logger.info("filestore up %d checked, %d uploaded", len(checklist), uploaded)
+        _logger.info("_file_up %d checked, %d uploaded", len(checklist), uploaded)
