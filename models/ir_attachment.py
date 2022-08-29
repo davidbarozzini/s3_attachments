@@ -132,7 +132,7 @@ class IrAttachment(models.Model):
         ]
 
         for vals in vals_list:
-            if vals["res_model"] in model_names:
+            if "res_model" in vals.keys() and vals["res_model"] in model_names:
                 vals["is_external"] = True
 
         return super().create(vals_list)
