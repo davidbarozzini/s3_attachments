@@ -359,9 +359,12 @@ class IrAttachment(models.Model):
             or aws_secret_access_key is False
             or aws_region_name is False
             or aws_bucket_name is False
+            or aws_max_upload is False
         ):
             _logger.info("AWS credentials missing")
             return
+
+        aws_max_upload = int(aws_max_upload)
 
         s3 = boto3.client(
             "s3",

@@ -49,6 +49,7 @@ class IrAttachmentS3Settings(models.TransientModel):
             or self.aws_secret_access_key is False
             or self.aws_region_name is False
             or self.aws_bucket_name is False
+            or self.aws_max_upload is False
             # or self.aws_upload_condition is False
         ):
             raise ValidationError("Missing data.")
