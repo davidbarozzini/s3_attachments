@@ -352,6 +352,7 @@ class IrAttachment(models.Model):
         aws_secret_access_key = get_param("aws_secret_access_key")
         aws_region_name = get_param("aws_region_name")
         aws_bucket_name = get_param("aws_bucket_name")
+        aws_max_upload = get_param("aws_max_upload")
 
         if (
             aws_access_key_id is False
@@ -377,6 +378,10 @@ class IrAttachment(models.Model):
         try:
             for atts in self._cr.split_for_in_conditions(checklist):
                 for att in atts:
+                    # only upload a bunch of files at a time
+                    if uploaded >= aws_max_upload:
+                        break
+
                     fname = att.store_fname
 
                     if fname is False:

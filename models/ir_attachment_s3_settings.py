@@ -24,6 +24,11 @@ class IrAttachmentS3Settings(models.TransientModel):
         config_parameter="aws_upload_condition",
         help="A comma-separated list of models with no whitespace.",
     )
+    aws_max_upload = fields.Integer(
+        string="Max uploads per session",
+        config_paramente="aws_max_upload",
+        default=1000,
+    )
     aws_stage_condition = fields.Char(
         string="ODOO_STAGE value",
         config_parameter="aws_stage_condition",
@@ -31,7 +36,7 @@ class IrAttachmentS3Settings(models.TransientModel):
             "Value of the ODOO_STAGE environmental variable for which the "
             "upload is active."
         ),
-        default="production"
+        default="production",
     )
 
     def execute(self):
