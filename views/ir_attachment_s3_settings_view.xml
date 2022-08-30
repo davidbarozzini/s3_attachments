@@ -86,6 +86,16 @@
                                 <div class="content-group">
                                     <div class="mt16 row">
                                         <label
+                                            for="aws_max_upload"
+                                            string="Max uploads per session"
+                                            class="col-xs-3 col-md-3 o_light_label"
+                                        />
+                                        <field name="aws_max_upload" class="oe_inline" />
+                                    </div>
+                                </div>
+                                <div class="content-group">
+                                    <div class="mt16 row">
+                                        <label
                                             for="aws_upload_condition"
                                             string="Activation value for ODOO_STAGE"
                                             class="col-xs-3 col-md-3 o_light_label"
