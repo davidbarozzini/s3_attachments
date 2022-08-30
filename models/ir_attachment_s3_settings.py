@@ -26,7 +26,7 @@ class IrAttachmentS3Settings(models.TransientModel):
     )
     aws_max_upload = fields.Integer(
         string="Max uploads per session",
-        config_paramente="aws_max_upload",
+        config_parameter="aws_max_upload",
         default=1000,
     )
     aws_stage_condition = fields.Char(
