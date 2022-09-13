@@ -30,7 +30,7 @@ class IrAttachment(models.Model):
 
     @api.model
     def _is_s3_active(self):
-        odoo_stage = os.environ.get("ODOO_STAGE", "production")
+        odoo_stage = os.environ.get("ODOO_STAGE", "stage")
         aws_stage_condition = (
             self.env["ir.config_parameter"].sudo().get_param("aws_stage_condition")
         )
